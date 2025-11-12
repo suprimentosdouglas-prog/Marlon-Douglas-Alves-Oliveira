@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Solicitações",
+  "description": "Um sistema completo para gestão de solicitações internas de compras, locações e serviços. Inclui formulários inteligentes, cálculo automático de status e um painel visual para acompanhamento.",
+  "requestFramePermissions": []
+}
