@@ -9,6 +9,7 @@ import LoginPage from './components/LoginPage';
 import AdminPanel from './components/AdminPanel'; // Import AdminPanel
 import { getStatusLocacao, getStatusServico } from './utils/statusCalculations';
 import { format, subDays, addDays } from './utils/dateUtils';
+import ConfirmModal from './components/ConfirmModal';
 
 type Page = 'dashboard' | 'painel' | 'nova-solicitacao' | 'gerenciar-solicitacoes' | 'admin-panel';
 
@@ -26,6 +27,19 @@ export default function App() {
         role: 'admin',
       }
   ]);
+  const [notificationContact, setNotificationContact] = useState<string>('');
+  const [infoModal, setInfoModal] = useState<{open: boolean, title: string, description: string}>({
+      open: false,
+      title: '',
+      description: '',
+  });
+
+  useEffect(() => {
+    const savedContact = localStorage.getItem('notificationContact');
+    if (savedContact) {
+        setNotificationContact(savedContact);
+    }
+  }, []);
 
   const handleLogin = (email: string) => {
     const normalizedEmail = email.toLowerCase().trim();
@@ -72,9 +86,45 @@ export default function App() {
           statusAprovacao: StatusAprovacao.PENDENTE,
       } as Solicitacao;
       setSolicitacoes(prev => [solicitacaoCompleta, ...prev]);
+
+      if (notificationContact) {
+        const subject = `Nova Solicitação: ${solicitacaoCompleta.id} - ${solicitacaoCompleta.titulo}`;
+        const body = `Uma nova solicitação foi criada:
+- ID: ${solicitacaoCompleta.id}
+- Tipo: ${solicitacaoCompleta.tipo}
+- Título: ${solicitacaoCompleta.titulo}
+- Solicitante: ${solicitacaoCompleta.solicitante}
+- Obra/Setor: ${solicitacaoCompleta.obraSetor}
+- Data: ${format(solicitacaoCompleta.dataCriacao, 'dd/MM/yyyy HH:mm')}
+
+Acesse o sistema para analisar.`.trim();
+        
+        const medium = notificationContact.includes('@') ? 'E-mail' : 'WhatsApp';
+
+        if (medium === 'E-mail') {
+            const mailtoLink = `mailto:${notificationContact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.open(mailtoLink, '_blank');
+        } else {
+            // WhatsApp
+            const phoneNumber = notificationContact.replace(/\D/g, '');
+            const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(subject + '\n\n' + body)}`;
+            window.open(whatsappLink, '_blank');
+        }
+        setInfoModal({
+            open: true,
+            title: 'Solicitação Criada!',
+            description: `A solicitação ${solicitacaoCompleta.id} foi registrada. Uma nova janela foi aberta para notificar o administrador por ${medium}. Se nada aconteceu, verifique se o seu navegador bloqueou o pop-up.`
+        });
+    } else {
       setPage('dashboard');
+    }
   };
   
+  const handleCloseInfoModal = () => {
+      setInfoModal({ open: false, title: '', description: '' });
+      setPage('dashboard');
+  }
+
   const updateStatusAprovacao = (id: string, status: StatusAprovacao, motivo?: string) => {
       setSolicitacoes(prev => prev.map(s => {
           if (s.id === id) {
@@ -148,6 +198,11 @@ export default function App() {
 
   const deleteUser = (userId: string) => {
     setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const saveNotificationContact = (contact: string) => {
+    localStorage.setItem('notificationContact', contact);
+    setNotificationContact(contact);
   };
   
   const solicitacoesExibidas = useMemo(() => {
@@ -238,6 +293,8 @@ export default function App() {
                   currentUser={currentUser}
                   onUpdateUserRole={updateUserRole}
                   onDeleteUser={deleteUser}
+                  notificationContact={notificationContact}
+                  onSaveNotificationContact={saveNotificationContact}
                />;
       default:
         return <Dashboard solicitacoes={solicitacoesExibidas} setPage={setPage} stats={stats} isAdmin={isAdmin} />;
@@ -260,6 +317,16 @@ export default function App() {
           </div>
         </main>
       </div>
+      <ConfirmModal
+        open={infoModal.open}
+        onClose={handleCloseInfoModal}
+        onConfirm={handleCloseInfoModal}
+        title={infoModal.title}
+        description={infoModal.description}
+        confirmButtonText="OK"
+        variant="info"
+        hideCancelButton={true}
+      />
     </>
   );
 }
